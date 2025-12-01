@@ -1,84 +1,227 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useCallback } from 'react';
 
-const slogans = [
-  "Turn chats into apps",
-  "Prompt. Ship. Repeat.",
-  "Build anything from a chat",
-  "Ideas → Apps, instantly",
-  "From zero to MVP in minutes",
-  "Your cofounder in the command line",
-  "Draft, iterate, deploy",
-  "Ship faster than you can type",
-  "Design in text, deliver in code",
-  "Dream it. Prompt it. Run it.",
-  "Chat-native app building",
-  "From prompt to product",
-  "One prompt, infinite apps",
-  "Stop scaffolding. Start shipping.",
-  "Prototype at the speed of thought",
-  "Make conversations executable"
+type PieceType = 'king' | 'queen' | 'rook' | 'bishop' | 'knight' | 'pawn';
+type PieceColor = 'white' | 'black';
+
+interface Piece {
+  type: PieceType;
+  color: PieceColor;
+}
+
+interface Position {
+  row: number;
+  col: number;
+}
+
+const initialBoard: (Piece | null)[][] = [
+  [
+    { type: 'rook', color: 'black' },
+    { type: 'knight', color: 'black' },
+    { type: 'bishop', color: 'black' },
+    { type: 'queen', color: 'black' },
+    { type: 'king', color: 'black' },
+    { type: 'bishop', color: 'black' },
+    { type: 'knight', color: 'black' },
+    { type: 'rook', color: 'black' }
+  ],
+  Array(8).fill(null).map(() => ({ type: 'pawn', color: 'black' })),
+  Array(8).fill(null),
+  Array(8).fill(null),
+  Array(8).fill(null),
+  Array(8).fill(null),
+  Array(8).fill(null).map(() => ({ type: 'pawn', color: 'white' })),
+  [
+    { type: 'rook', color: 'white' },
+    { type: 'knight', color: 'white' },
+    { type: 'bishop', color: 'white' },
+    { type: 'queen', color: 'white' },
+    { type: 'king', color: 'white' },
+    { type: 'bishop', color: 'white' },
+    { type: 'knight', color: 'white' },
+    { type: 'rook', color: 'white' }
+  ]
 ];
 
-export default function Landing() {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [isVisible, setIsVisible] = useState(true);
+const pieceSymbols: Record<PieceType, Record<PieceColor, string>> = {
+  king: { white: '♔', black: '♚' },
+  queen: { white: '♕', black: '♛' },
+  rook: { white: '♖', black: '♜' },
+  bishop: { white: '♗', black: '♝' },
+  knight: { white: '♘', black: '♞' },
+  pawn: { white: '♙', black: '♟' }
+};
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setIsVisible(false);
-      setTimeout(() => {
-        setCurrentIndex((prev) => (prev + 1) % slogans.length);
-        setIsVisible(true);
-      }, 400);
-    }, 2800);
+export default function ChessGame() {
+  const [board, setBoard] = useState<(Piece | null)[][]>(initialBoard);
+  const [selectedSquare, setSelectedSquare] = useState<Position | null>(null);
+  const [currentPlayer, setCurrentPlayer] = useState<PieceColor>('white');
+  const [gameStatus, setGameStatus] = useState<string>('White to move');
 
-    return () => clearInterval(interval);
-  }, []);
+  const isValidMove = useCallback((from: Position, to: Position, piece: Piece): boolean => {
+    const { row: fromRow, col: fromCol } = from;
+    const { row: toRow, col: toCol } = to;
+    const rowDiff = Math.abs(toRow - fromRow);
+    const colDiff = Math.abs(toCol - fromCol);
+    
+    // Can't capture own piece
+    const targetPiece = board[toRow][toCol];
+    if (targetPiece && targetPiece.color === piece.color) {
+      return false;
+    }
+
+    switch (piece.type) {
+      case 'pawn':
+        const direction = piece.color === 'white' ? -1 : 1;
+        const startRow = piece.color === 'white' ? 6 : 1;
+        
+        // Forward move
+        if (fromCol === toCol && !targetPiece) {
+          if (toRow === fromRow + direction) return true;
+          if (fromRow === startRow && toRow === fromRow + 2 * direction) return true;
+        }
+        // Diagonal capture
+        if (colDiff === 1 && toRow === fromRow + direction && targetPiece) {
+          return true;
+        }
+        return false;
+
+      case 'rook':
+        return (fromRow === toRow || fromCol === toCol) && isPathClear(from, to);
+
+      case 'bishop':
+        return rowDiff === colDiff && isPathClear(from, to);
+
+      case 'queen':
+        return (fromRow === toRow || fromCol === toCol || rowDiff === colDiff) && isPathClear(from, to);
+
+      case 'king':
+        return rowDiff <= 1 && colDiff <= 1;
+
+      case 'knight':
+        return (rowDiff === 2 && colDiff === 1) || (rowDiff === 1 && colDiff === 2);
+
+      default:
+        return false;
+    }
+  }, [board]);
+
+  const isPathClear = useCallback((from: Position, to: Position): boolean => {
+    const { row: fromRow, col: fromCol } = from;
+    const { row: toRow, col: toCol } = to;
+    
+    const rowStep = toRow > fromRow ? 1 : toRow < fromRow ? -1 : 0;
+    const colStep = toCol > fromCol ? 1 : toCol < fromCol ? -1 : 0;
+    
+    let currentRow = fromRow + rowStep;
+    let currentCol = fromCol + colStep;
+    
+    while (currentRow !== toRow || currentCol !== toCol) {
+      if (board[currentRow][currentCol] !== null) {
+        return false;
+      }
+      currentRow += rowStep;
+      currentCol += colStep;
+    }
+    
+    return true;
+  }, [board]);
+
+  const handleSquareClick = useCallback((row: number, col: number) => {
+    const clickedPiece = board[row][col];
+    
+    if (selectedSquare) {
+      const { row: fromRow, col: fromCol } = selectedSquare;
+      const selectedPiece = board[fromRow][fromCol];
+      
+      if (selectedPiece && isValidMove(selectedSquare, { row, col }, selectedPiece)) {
+        // Make the move
+        const newBoard = board.map(r => [...r]);
+        newBoard[row][col] = selectedPiece;
+        newBoard[fromRow][fromCol] = null;
+        
+        setBoard(newBoard);
+        setCurrentPlayer(currentPlayer === 'white' ? 'black' : 'white');
+        setGameStatus(`${currentPlayer === 'white' ? 'Black' : 'White'} to move`);
+        setSelectedSquare(null);
+      } else if (clickedPiece && clickedPiece.color === currentPlayer) {
+        // Select new piece
+        setSelectedSquare({ row, col });
+      } else {
+        // Invalid move or empty square
+        setSelectedSquare(null);
+      }
+    } else if (clickedPiece && clickedPiece.color === currentPlayer) {
+      // Select piece
+      setSelectedSquare({ row, col });
+    }
+  }, [board, selectedSquare, currentPlayer, isValidMove]);
+
+  const resetGame = () => {
+    setBoard(initialBoard);
+    setSelectedSquare(null);
+    setCurrentPlayer('white');
+    setGameStatus('White to move');
+  };
 
   return (
-    <div className="relative h-[100dvh] w-full overflow-hidden bg-black text-white">
-      {/* Enhanced animated aurora background layers */}
-      <div className="absolute inset-0 bg-aurora-layer-1" />
-      <div className="absolute inset-0 bg-aurora-layer-2" />
-      <div className="absolute inset-0 bg-aurora-layer-3" />
-      
-      {/* Floating particles overlay */}
-      <div className="absolute inset-0 bg-particles" />
-      
-      {/* Main content - centered */}
-      <main className="relative z-10 h-full flex flex-col items-center justify-center px-6">
-        <h1 className="text-center text-[clamp(28px,6vw,64px)] font-medium tracking-tight mb-4">
-          Turn Chats into Apps
-        </h1>
-        
-        {/* Rotating slogans */}
-        <div className="mt-4 h-8 md:h-10 overflow-hidden flex items-center justify-center">
-          <span
-            className={`inline-block text-center text-[clamp(18px,3vw,32px)] font-light transition-all duration-[400ms] ease-in-out ${
-              isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
-            }`}
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
+      <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 shadow-2xl">
+        <div className="text-center mb-6">
+          <h1 className="text-4xl font-bold text-white mb-2">Chess Game</h1>
+          <p className="text-white/80 text-lg">{gameStatus}</p>
+          <button
+            onClick={resetGame}
+            className="mt-4 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
           >
-            {slogans[currentIndex]}
-          </span>
+            New Game
+          </button>
         </div>
-      </main>
-      
-      {/* Start Prompting arrow pointing left - bottom left */}
-      <div className="absolute left-6 md:left-8 bottom-[5%] z-20 flex items-center gap-3 arrow-point-left">
-        <div className="flex items-center gap-2 text-white/80 font-medium text-sm md:text-base">
-          <svg 
-            className="w-5 h-5 md:w-6 md:h-6 animate-bounce-horizontal" 
-            fill="none" 
-            viewBox="0 0 24 24" 
-            stroke="currentColor"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          <span>Start prompting</span>
+        
+        <div className="grid grid-cols-8 gap-0 border-4 border-amber-800 rounded-lg overflow-hidden shadow-lg">
+          {board.map((row, rowIndex) =>
+            row.map((piece, colIndex) => {
+              const isLight = (rowIndex + colIndex) % 2 === 0;
+              const isSelected = selectedSquare?.row === rowIndex && selectedSquare?.col === colIndex;
+              
+              return (
+                <div
+                  key={`${rowIndex}-${colIndex}`}
+                  className={`
+                    w-16 h-16 flex items-center justify-center cursor-pointer text-4xl
+                    transition-all duration-200 hover:scale-105
+                    ${isLight ? 'bg-amber-100' : 'bg-amber-800'}
+                    ${isSelected ? 'ring-4 ring-blue-500 ring-inset' : ''}
+                    ${piece && piece.color === currentPlayer ? 'hover:bg-green-300' : ''}
+                  `}
+                  onClick={() => handleSquareClick(rowIndex, colIndex)}
+                >
+                  {piece && (
+                    <span className={`select-none ${piece.color === 'white' ? 'text-white drop-shadow-lg' : 'text-black'}`}>
+                      {pieceSymbols[piece.type][piece.color]}
+                    </span>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+        
+        <div className="mt-6 text-center">
+          <div className="flex justify-center gap-8 text-white/80">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">♔</span>
+              <span>White</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">♚</span>
+              <span>Black</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   );
 }
+
