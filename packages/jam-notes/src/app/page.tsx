@@ -167,7 +167,7 @@ export default function ChessGame() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-      <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 shadow-2xl">
+      <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 shadow-[0_20px_60px_rgba(0,0,0,0.8)]">
         <div className="text-center mb-6">
           <h1 className="text-4xl font-bold text-white mb-2">Chess Game</h1>
           <p className="text-white/80 text-lg">{gameStatus}</p>
@@ -224,4 +224,5 @@ export default function ChessGame() {
     </div>
   );
 }
+
 
